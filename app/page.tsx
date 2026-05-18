@@ -29,6 +29,7 @@ const HOW_IT_WORKS = [
 export default function LandingPage() {
   const router = useRouter();
   const [featuredCourses, setFeaturedCourses] = useState<CourseWithInstructor[]>([]);
+  const [courseMeta, setCourseMeta] = useState<Record<string, { enrollments: number; rating: number }>>({});
   const [stats, setStats] = useState({ courses: 0, students: 0 });
 
   useEffect(() => {
@@ -40,7 +41,28 @@ export default function LandingPage() {
         .order('created_at', { ascending: false })
         .limit(6);
 
-      if (courses) setFeaturedCourses(courses as CourseWithInstructor[]);
+      if (courses) {
+        const courseList = courses as CourseWithInstructor[];
+        setFeaturedCourses(courseList);
+
+        // Fetch enrollment counts and ratings for each course
+        const meta: Record<string, { enrollments: number; rating: number }> = {};
+        await Promise.all(courseList.map(async (c) => {
+          const { count: enrollCount } = await supabase
+            .from('enrollments')
+            .select('id', { count: 'exact', head: true })
+            .eq('course_id', c.id);
+          const { data: reviews } = await supabase
+            .from('reviews')
+            .select('rating')
+            .eq('course_id', c.id);
+          const avgRating = reviews && reviews.length > 0
+            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+            : 0;
+          meta[c.id] = { enrollments: enrollCount ?? 0, rating: avgRating };
+        }));
+        setCourseMeta(meta);
+      }
 
       const { count: courseCount } = await supabase
         .from('courses')
@@ -94,24 +116,21 @@ export default function LandingPage() {
               Join thousands of learners mastering in-demand skills. Create courses, track progress, and earn recognition — all in one powerful platform.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button
-                size="lg"
+            <div className="flex flex-col sm:flex-row gap-4 mt-2">
+              <button
                 onClick={() => router.push('/courses')}
-                className="bg-sky-500 hover:bg-sky-400 text-white shadow-2xl shadow-sky-500/25 text-base px-8 h-14 font-semibold"
+                className="inline-flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-400 text-white font-semibold text-base px-8 h-14 rounded-xl shadow-2xl shadow-sky-500/30 transition-all hover:shadow-sky-400/40 hover:scale-[1.02] active:scale-[0.98]"
               >
                 Explore Courses
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
+                <ArrowRight className="w-5 h-5" />
+              </button>
+              <button
                 onClick={() => router.push('/auth?tab=signup')}
-                className="border-white/30 text-white hover:bg-white/10 hover:border-white/50 text-base px-8 h-14 font-semibold backdrop-blur-sm"
+                className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold text-base px-8 h-14 rounded-xl border-2 border-white/25 hover:border-white/50 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
-                <Play className="w-5 h-5 mr-2 fill-white" />
+                <Play className="w-5 h-5 fill-white" />
                 Start for Free
-              </Button>
+              </button>
             </div>
 
             {/* Trust indicators */}
@@ -235,8 +254,8 @@ export default function LandingPage() {
                 <CourseCard
                   key={course.id}
                   course={course}
-                  enrollmentCount={0}
-                  avgRating={0}
+                  enrollmentCount={courseMeta[course.id]?.enrollments ?? 0}
+                  avgRating={courseMeta[course.id]?.rating ?? 0}
                 />
               ))}
             </div>
@@ -325,15 +344,15 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/auth?tab=signup">
-              <Button size="lg" className="bg-sky-500 hover:bg-sky-400 text-white px-10 h-14 text-base font-semibold shadow-2xl shadow-sky-500/30 w-full sm:w-auto">
+              <button className="inline-flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-400 text-white font-semibold text-base px-10 h-14 rounded-xl shadow-2xl shadow-sky-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto">
                 Join for Free
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
+                <ArrowRight className="w-5 h-5" />
+              </button>
             </Link>
             <Link href="/courses">
-              <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 px-10 h-14 text-base w-full sm:w-auto">
+              <button className="inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-semibold text-base px-10 h-14 rounded-xl border-2 border-white/25 hover:border-white/50 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto">
                 Browse Courses
-              </Button>
+              </button>
             </Link>
           </div>
         </div>
